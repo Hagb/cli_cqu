@@ -71,13 +71,7 @@ CLI CQU 提供了命令行界面。
 
 .. code:: sh
 
-    pip install cli-cqu
-
-或者使用 pipx 安装（TODO）：
-
-.. code:: sh
-
-    pipx install cli-cqu
+    pip install .
 
 贡献
 ====
