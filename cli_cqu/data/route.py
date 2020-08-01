@@ -22,6 +22,7 @@ __all__ = ("Route", "Parsed", "Jxgl")
 class Route:
     home = "/home.aspx"
     mainform = "/MAINFRM.aspx"
+    logintest = "/SYS/Main_banner.aspx"
 
     class TeachingArrangement:
         "教学安排模块"
@@ -298,3 +299,7 @@ class Jxgl():
             logging.error("未知的数据结构")
             logging.error(tr.prettify())
             raise ValueError("未知的数据结构")
+
+    def isLogined(self) -> bool:
+        "返回 True 则表面已成功登陆"
+        return self.session.get(f"{self.jxglUrl}{Route.logintest}", allow_redirects=False).status_code == 200
