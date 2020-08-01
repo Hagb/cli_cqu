@@ -2,7 +2,10 @@
 """
 import logging
 import re
-from typing import *
+import time
+from typing import List
+from typing import Union
+from typing import Dict
 
 from bs4 import BeautifulSoup
 from requests import Session
@@ -10,8 +13,10 @@ from requests import Session
 from ..model import Course
 from ..model import ExperimentCourse
 from . import HOST
+from .js_equality import chkpwd
+from .ua import UA_IE11
 
-__all__ = ("Route", "Parsed")
+__all__ = ("Route", "Parsed", "Jxgl")
 
 
 class Route:
@@ -36,46 +41,7 @@ class Route:
         whole_assignment = "http://oldjw.cqu.edu.cn:8088/score/sel_score/sum_score_sel.asp"
 
 
-class Parsed:
-    class TeachingArrangement:
-        "教学安排模块"
-
-        @staticmethod
-        def personal_courses(s: Session) -> dict:
-            "解析个人课表页面，获取可得的信息"
-            url = f"{HOST.PREFIX}{Route.TeachingArrangement.personal_courses}"
-            # 需要填写的表单数据以及说明
-            resp = s.get(url)
-            html = BeautifulSoup(resp.text, "lxml")
-            el_学年学期 = html.select("select[name=Sel_XNXQ] > option")
-            学年学期 = [{
-                "text": i.text,
-                "value": int(i.attrs["value"])
-            } for i in el_学年学期]
-            el_排序 = html.select("select[name=px] > option")
-            return {
-                "Sel_XNXQ": 学年学期,
-                "rad": {
-                    "text": "总是 on，不知道干嘛的",
-                    "value": "on"
-                },
-                "###": "始终全量获取"
-            }
-
-        @staticmethod
-        def personal_courses_table(
-                s: Session,
-                data: dict) -> List[Union[Course, ExperimentCourse]]:
-            """查询个人课表，需要的表单信息可以通过
-            Route.TeachingArrangement.personal_courses 获取
-            """
-            url = f"{HOST.PREFIX}{Route.TeachingArrangement.personal_courses_table}"
-            resp = s.post(url, data=data)
-            html = BeautifulSoup(resp.text, "lxml")
-            listing = html.select("table > tbody > tr")
-            courses = [make_course(i) for i in listing]
-            return courses
-
+class Parsed: 
     class Assignment:
         @staticmethod
         def whole_assignment(u: str, p: str) -> dict:
@@ -165,64 +131,170 @@ class Parsed:
             return table
 
 
-def makeurl(path: str) -> str:
-    "将 path 补全为完整的 url"
-    return f"{HOST.PREFIX}{path}"
+class Jxgl():
+    "与教学管理系统的交互"
+
+    class NoUserError(ValueError):
+        "使用了不存在的用户名的登陆错误"
+        pass
+
+    class LoginIncorrectError(ValueError):
+        "用户名或密码不正确的登陆错误"
+        pass
+
+    class LoginExpired(Exception):
+        "登陆 cookies 过期或尚未登陆"
+        pass
+
+    jxglUrl: str
+    username: str
+    password: str
+    session: Session
+
+    def login(self) -> None:
+        """向主页发出请求，发送帐号密码表单，获取 cookie
+        帐号或密码错误则抛出异常
+        """
+        # 初始化 Cookie
+        url = f"{self.jxglUrl}/home.aspx"
+        resp = self.session.get(url)
+        # fix: 偶尔不需要设置 cookie, 直接就进入主页了
+        # 这是跳转页 JavaScript 的等效代码
+        pattern = re.compile(r"(?<=document.cookie=')DSafeId=([A-Z0-9]+);(?=';)")
+        if pattern.search(resp.text):
+            first_cookie = re.search(pattern, resp.text)[1]
+            self.session.cookies.set("DSafeId", first_cookie)
+            time.sleep(0.680)
+            resp = self.session.get(url)
+            new_cookie = resp.headers.get("set-cookie", self.session.cookies.get_dict())
+            c = {
+                1: re.search("(?<=ASP.NET_SessionId=)([a-zA-Z0-9]+)(?=;)", new_cookie)[1],
+                2: re.search("(?<=_D_SID=)([A-Z0-9]+)(?=;)", new_cookie)[1]
+            }
+            self.session.cookies.set("ASP.NET_SessionId", c[1])
+            self.session.cookies.set("_D_SID", c[2])
+
+        # 发送表单
+        url = f"{self.jxglUrl}/_data/index_login.aspx"
+        html = BeautifulSoup(self.session.get(url).text, "lxml")
+        login_form = {
+            "__VIEWSTATE": html.select_one("#Logon > input[name=__VIEWSTATE]")["value"],
+            "__VIEWSTATEGENERATOR": html.select_one("#Logon > input[name=__VIEWSTATEGENERATOR]")["value"],
+            "Sel_Type": "STU",
+            "txt_dsdsdsdjkjkjc": self.username,  # 学号
+            "txt_dsdfdfgfouyy": "",  # 密码, 实际上的密码加密后赋值给 efdfdfuuyyuuckjg
+            "txt_ysdsdsdskgf": "",
+            "pcInfo": "",
+            "typeName": "",
+            "aerererdsdxcxdfgfg": "",
+            "efdfdfuuyyuuckjg": chkpwd(self.username, self.password),
+        }
+        page_text = self.session.post(url, data=login_form).content.decode(encoding='GBK')
+        if "正在加载权限数据..." in page_text:
+            return
+        if "账号或密码不正确！请重新输入。" in page_text:
+            raise self.LoginIncorrectError
+        if "该账号尚未分配角色!" in page_text:
+            raise self.NoUserError
+        else:
+            raise ValueError("意料之外的登陆返回页面")
 
 
-def make_course(tr: BeautifulSoup) -> Union[Course, ExperimentCourse]:
-    "根据传入的 tr 元素，获取对应的 Course 对象"
-    td = tr.select("td")
-    # 第一列是序号，忽略
-    if len(td) == 13:
-        return Course(
-            identifier=td[1].text if td[1].text != "" else td[1].attrs.get(
-                "hidevalue", ''),
-            score=float(td[2].text if td[2].text != "" else td[2].attrs.
-                        get("hidevalue", '')),
-            time_total=float(td[3].text if td[3].text != "" else td[3].attrs.
-                             get("hidevalue", '')),
-            time_teach=float(td[4].text if td[4].text != "" else td[4].attrs.
-                             get("hidevalue", '')),
-            time_practice=float(td[5].text if td[5].text != "" else td[5].
-                                attrs.get("hidevalue", '')),
-            classifier=td[6].text if td[6].text != "" else td[6].attrs.get(
-                "hidevalue", ''),
-            teach_type=td[7].text if td[7].text != "" else td[7].attrs.get(
-                "hidevalue", ''),
-            exam_type=td[8].text if td[8].text != "" else td[8].attrs.get(
-                "hidevalue", ''),
-            teacher=td[9].text if td[9].text != "" else td[9].attrs.get(
-                "hidevalue", ''),
-            week_schedule=td[10].text,
-            day_schedule=td[11].text,
-            location=td[12].text)
-    elif len(td) == 12:
-        return ExperimentCourse(
-            identifier=td[1].text if td[1].text != "" else td[1].attrs.get(
-                "hidevalue", ''),
-            score=float(td[2].text if td[2].text != "" else td[2].attrs.
-                        get("hidevalue", '')),
-            time_total=float(td[3].text if td[3].text != "" else td[3].attrs.
-                             get("hidevalue", '')),
-            time_teach=float(td[4].text if td[4].text != "" else td[4].attrs.
-                             get("hidevalue", '')),
-            time_practice=float(td[5].text if td[5].text != "" else td[5].
-                                attrs.get("hidevalue", '')),
-            project_name=td[6].text if td[6].text != "" else td[6].attrs.get(
-                "hidevalue", ''),
-            teacher=td[7].text if td[7].text != "" else td[7].attrs.get(
-                "hidevalue", ''),
-            hosting_teacher=td[8].text
-            if td[8].text != "" else td[8].attrs.get("hidevalue", ''),
-            week_schedule=td[9].text if td[9].text != "" else td[9].attrs.get(
-                "hidevalue", ''),
-            day_schedule=td[10].text
-            if td[10].text != "" else td[10].attrs.get("hidevalue", ''),
-            location=td[11].text if td[11].text != "" else td[11].attrs.get(
-                "hidevalue", ''),
-        )
-    else:
-        logging.error("未知的数据结构")
-        logging.error(tr.prettify())
-        raise ValueError("未知的数据结构")
+    def __init__(self, username: str, password: str, jxglUrl: str = HOST.PREFIX) -> None:
+        "指定 jxglUrl 参数可以自定义教学管理系统的地址"
+        self.username: str = username
+        self.password: str = password
+        self.jxglUrl: str = jxglUrl
+        self.session = Session()
+        self.session.headers.update({
+            'host': HOST.DOMAIN,
+            'connection': "keep-alive",
+            'cache-control': "max-age=0",
+            'upgrade-insecure-requests': "1",
+            'user-agent': UA_IE11,
+            'accept':
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
+            'referer': HOST.PREFIX,
+            'accept-encoding': "gzip, deflate",
+            'accept-language': "zh-CN,zh;q=0.9",
+        })
+
+
+    def getTerms(self) -> Dict[int,str]:
+        "解析课表页面，获取学期列表"
+        url = f"{HOST.PREFIX}{Route.TeachingArrangement.personal_courses}"
+        # 需要填写的表单数据以及说明
+        resp = self.session.get(url)
+        html = BeautifulSoup(resp.text, "lxml")
+        el_学年学期 = html.select("select[name=Sel_XNXQ] > option")
+        return {int(i.attrs["value"]): i.text  for i in el_学年学期}
+
+
+    def getCourses(self, termId: int) -> List[Union[Course, ExperimentCourse]]:
+        "获取指定学期的课程表"
+        url = f"{self.jxglUrl}{Route.TeachingArrangement.personal_courses_table}"
+        resp = self.session.post(url, data={"Sel_XNXQ": termId, "px": 0, "rad": "on"})
+        if("您正查看的此页已过期" in resp.text):
+            raise self.LoginExpired
+        html = BeautifulSoup(resp.text, "lxml")
+        listing = html.select("table > tbody > tr")
+        return [self.makeCourse(i) for i in listing]
+
+
+    @staticmethod
+    def makeCourse(tr: BeautifulSoup) -> Union[Course, ExperimentCourse]:
+        "根据传入的 tr 元素，获取对应的 Course 对象"
+        td = tr.select("td")
+        # 第一列是序号，忽略
+        if len(td) == 13:
+            return Course(
+                identifier=td[1].text if td[1].text != "" else td[1].attrs.get(
+                    "hidevalue", ''),
+                score=float(td[2].text if td[2].text != "" else td[2].attrs.
+                            get("hidevalue", '')),
+                time_total=float(td[3].text if td[3].text != "" else td[3].attrs.
+                                 get("hidevalue", '')),
+                time_teach=float(td[4].text if td[4].text != "" else td[4].attrs.
+                                 get("hidevalue", '')),
+                time_practice=float(td[5].text if td[5].text != "" else td[5].
+                                    attrs.get("hidevalue", '')),
+                classifier=td[6].text if td[6].text != "" else td[6].attrs.get(
+                    "hidevalue", ''),
+                teach_type=td[7].text if td[7].text != "" else td[7].attrs.get(
+                    "hidevalue", ''),
+                exam_type=td[8].text if td[8].text != "" else td[8].attrs.get(
+                    "hidevalue", ''),
+                teacher=td[9].text if td[9].text != "" else td[9].attrs.get(
+                    "hidevalue", ''),
+                week_schedule=td[10].text,
+                day_schedule=td[11].text,
+                location=td[12].text)
+        elif len(td) == 12:
+            return ExperimentCourse(
+                identifier=td[1].text if td[1].text != "" else td[1].attrs.get(
+                    "hidevalue", ''),
+                score=float(td[2].text if td[2].text != "" else td[2].attrs.
+                            get("hidevalue", '')),
+                time_total=float(td[3].text if td[3].text != "" else td[3].attrs.
+                                 get("hidevalue", '')),
+                time_teach=float(td[4].text if td[4].text != "" else td[4].attrs.
+                                 get("hidevalue", '')),
+                time_practice=float(td[5].text if td[5].text != "" else td[5].
+                                    attrs.get("hidevalue", '')),
+                project_name=td[6].text if td[6].text != "" else td[6].attrs.get(
+                    "hidevalue", ''),
+                teacher=td[7].text if td[7].text != "" else td[7].attrs.get(
+                    "hidevalue", ''),
+                hosting_teacher=td[8].text
+                if td[8].text != "" else td[8].attrs.get("hidevalue", ''),
+                week_schedule=td[9].text if td[9].text != "" else td[9].attrs.get(
+                    "hidevalue", ''),
+                day_schedule=td[10].text
+                if td[10].text != "" else td[10].attrs.get("hidevalue", ''),
+                location=td[11].text if td[11].text != "" else td[11].attrs.get(
+                    "hidevalue", ''),
+            )
+        else:
+            logging.error("未知的数据结构")
+            logging.error(tr.prettify())
+            raise ValueError("未知的数据结构")
