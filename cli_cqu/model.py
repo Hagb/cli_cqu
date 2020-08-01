@@ -55,3 +55,21 @@ class ExperimentCourse(BaseModel):
     day_schedule: str
     # 地点
     location: str
+
+
+class Exam(BaseModel):
+    "考试"
+    # 课程号+名字
+    identifier: str
+    # 学分
+    score: float
+    # 类别
+    classifier: str
+    # 考核方式
+    exam_type: str
+    # 时间
+    time: str
+    # 地点
+    location: str
+    # 座位号
+    seat_no: int

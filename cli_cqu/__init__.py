@@ -1,22 +1,13 @@
 """CLI CQU 是重庆大学教务系统的命令行界面
 """
 import json
-#import logging
-#import re
-#import time
 from argparse import ArgumentParser
 from datetime import date
 from getpass import getpass
 from typing import *
 
-#from bs4 import BeautifulSoup
-#from requests import Response, Session
-
-#from .data import HOST
-#from .data.js_equality import chkpwd
 from .data.route import Parsed
 from .data.schedule import HuxiSchedule, ShaPingBaSchedule, New2020Schedule
-#from .data.ua import UA_IE11
 from .excpetion.signal import *
 from .util.calendar import make_ical
 from .data.route import Jxgl
@@ -28,10 +19,10 @@ __all__ = ("App")
 
 class App:
     def __init__(self, username: str = None, password: str = None):
-        self.username = username if username is not None else input("username> ")
-        self.password = password if password is not None else getpass("password> ").rstrip('\n')
-        self.jxgl = Jxgl(self.username, self.password)
-        self.__login()
+        username = username if username is not None else input("username> ")
+        password = password if password is not None else getpass("password> ").rstrip('\n')
+        self.jxgl = Jxgl(username, password)
+        self.jxgl.login()
 
     def mainloop(self, one_cmd: str = None):
         """命令行界面，解析指令执行对应功能"""
@@ -73,15 +64,11 @@ class App:
             self.courses_json()
         elif cmd == "courses-ical":
             self.courses_ical()
+        elif cmd == "exams-json":
+            self.exams_json()
         else:
             raise SigHelp(f"!!! 未处理的命令： {cmd} !!!")
         raise SigDone
-
-    def __login(self):
-        """向主页发出请求，发送帐号密码表单，获取 cookie
-        帐号或密码错误则抛出异常
-        """
-        self.jxgl.login()
 
     def courses_json(self):
         """选择课程表，下载为 JSON 文件"""
@@ -113,8 +100,26 @@ class App:
         with open(filename, "wb") as out:
             out.write(cal.to_ical())
 
+    def exams_json(self):
+        """下载考试安排为 JSON 文件"""
+        print("=== 下载考试安排，保存为 JSON ===")
+        exams = self.__get_exams()
+        filename = input("文件名（可忽略 json 后缀）> ").strip()
+        if not filename.endswith(".json"):
+            filename = f"{filename}.json"
+        with open(filename, "wt", encoding="utf-8") as out:
+            json.dump([i.dict() for i in exams], out, indent=2, ensure_ascii=False)
+
+    def __get_exams(self):
+        info = self.jxgl.getExamsTerms()
+        print("=== 选择学年学期 ===")
+        xnxq_list = list(info.items())
+        input(f'按回车生成{xnxq_list[0][1]}的考试安排>')
+        xnxq = xnxq_list[0][0]
+        return self.jxgl.getExams(xnxq)
+
     def __get_courses(self, xnxq_value_ref=[None]):
-        info = self.jxgl.getTerms()
+        info = self.jxgl.getCoursesTerms()
         print("=== 选择学年学期 ===")
         xnxq_list = list(info.items())
         for i, li in enumerate(xnxq_list):
@@ -122,7 +127,6 @@ class App:
         xnxq_i = int(input("学年学期[0|1]> ").rstrip())
         xnxq = xnxq_list[xnxq_i][0]
         xnxq_value_ref[0] = xnxq
-
         return self.jxgl.getCourses(xnxq)
 
 
@@ -133,6 +137,7 @@ def show_help():
     目前提供以下指令：
     * courses-json * 获取 JSON 格式的课程表
     * courses-ical * 获取 ICalendar 日历日程格式的课程表
+    * exams-json   * 获取 JSON 格式的考试安排
     * help | h | ? * 获取帮助信息
     * exit * 退出程序
     

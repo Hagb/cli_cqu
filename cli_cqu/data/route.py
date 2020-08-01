@@ -12,6 +12,7 @@ from requests import Session
 
 from ..model import Course
 from ..model import ExperimentCourse
+from ..model import Exam
 from . import HOST
 from .js_equality import chkpwd
 from .ua import UA_IE11
@@ -22,7 +23,7 @@ __all__ = ("Route", "Parsed", "Jxgl")
 class Route:
     home = "/home.aspx"
     mainform = "/MAINFRM.aspx"
-    logintest = "/SYS/Main_banner.aspx"
+    logintest = "/sys/Main_banner.aspx"
 
     class TeachingArrangement:
         "教学安排模块"
@@ -30,7 +31,10 @@ class Route:
         personal_courses = "/znpk/Pri_StuSel.aspx"
         # 查询个人课表
         personal_courses_table = "/znpk/Pri_StuSel_rpt.aspx"
-
+        # 考试安排表
+        personal_exams = "/kssw/stu_ksap.aspx"
+        # 查询考试安排
+        personal_exams_table = "/kssw/stu_ksap_rpt.aspx"
     class Assignment:
         """成绩单
 
@@ -44,6 +48,9 @@ class Route:
 
 class Parsed: 
     class Assignment:
+        class LoginIncorrectError(ValueError):
+            pass
+
         @staticmethod
         def whole_assignment(u: str, p: str) -> dict:
             """通过老教务网接口获取成绩单。
@@ -87,7 +94,7 @@ class Parsed:
             resp = session.post(Route.Assignment.oldjw_login, data=login_form)
             resp_text = resp.content.decode("gbk")
             if "你的密码不正确，请到教务处咨询(学生密码错误请向学院教务人员或辅导员查询)!" in resp_text:
-                raise ValueError("学号或密码错误，老教务处的密码默认为身份证后六位，"
+                raise Parsed.Assignment.LoginIncorrectError("学号或密码错误，老教务处的密码默认为身份证后六位，"
                                  #
                                  "或到教务处咨询(学生密码错误请向学院教务人员或辅导员查询)!")
 
@@ -221,15 +228,21 @@ class Jxgl():
         })
 
 
-    def getTerms(self) -> Dict[int,str]:
+    def getExamsTerms(self) -> Dict[int,str]:
+        "解析考试安排页面，获取考试安排学期列表"
+        url: str = f"{self.jxglUrl}{Route.TeachingArrangement.personal_exams}"
+        resp = self.session.get(url)
+        html = BeautifulSoup(resp.text, "lxml")
+        el_学年学期 = html.select("select[name=sel_xnxq] > option")
+        return {int(i.attrs["value"]): i.text  for i in el_学年学期}
+
+    def getCoursesTerms(self) -> Dict[int,str]:
         "解析课表页面，获取学期列表"
-        url = f"{HOST.PREFIX}{Route.TeachingArrangement.personal_courses}"
-        # 需要填写的表单数据以及说明
+        url: str = f"{self.jxglUrl}{Route.TeachingArrangement.personal_courses}"
         resp = self.session.get(url)
         html = BeautifulSoup(resp.text, "lxml")
         el_学年学期 = html.select("select[name=Sel_XNXQ] > option")
         return {int(i.attrs["value"]): i.text  for i in el_学年学期}
-
 
     def getCourses(self, termId: int) -> List[Union[Course, ExperimentCourse]]:
         "获取指定学期的课程表"
@@ -241,6 +254,25 @@ class Jxgl():
         listing = html.select("table > tbody > tr")
         return [self.makeCourse(i) for i in listing]
 
+    def getExams(self, termId: int) -> List[Exam]:
+        url = f"{self.jxglUrl}{Route.TeachingArrangement.personal_exams_table}"
+        resp = self.session.post(url, data={"sel_xnxq": termId})
+        if("您正查看的此页已过期" in resp.text):
+            raise self.LoginExpired
+        html = BeautifulSoup(resp.text, "lxml")
+        listing = html.select("table[ID=ID_Table] > tr")
+        return [self.makeExam(i) for i in listing]
+
+    @staticmethod
+    def makeExam(tr: BeautifulSoup) -> Exam:
+        td = tr.select("td")
+        return Exam(identifier=td[1].text,
+                    score=float(td[2].text),
+                    classifier=td[3].text,
+                    exam_type=td[4].text,
+                    time=td[5].text,
+                    location=td[6].text,
+                    seat_no=int(td[7].text))
 
     @staticmethod
     def makeCourse(tr: BeautifulSoup) -> Union[Course, ExperimentCourse]:
