@@ -20,13 +20,14 @@ def exams_make_ical(exams: List[Exam]) -> Calendar:
         cal.add_component(exam_build_event(exam))
     return cal
 
+
 def exam_build_event(exam: Exam) -> Event:
     proto = Event()
     proto.add("summary", f"{exam.identifier}-考试")
     proto.add("location", f"{exam.location}-座位号{exam.seat_no}")
-    proto.add("description", f"考试\n学分：{exam.score}" +
-              (f"\n类别：{exam.classifier}" if exam.classifier else '') +
-              (f"\n考核方式：{exam.exam_type}" if exam.exam_type else '' )
+    proto.add(
+        "description", f"考试\n学分：{exam.score}" + (f"\n类别：{exam.classifier}" if exam.classifier else '') +
+        (f"\n考核方式：{exam.exam_type}" if exam.exam_type else '')
     )
 
     dt_start, dt_end = exam_materialize_calendar(exam.time)
@@ -35,16 +36,17 @@ def exam_build_event(exam: Exam) -> Event:
 
     # RFC 5545 要求 VEVENT 必须存在 dtstamp 与 uid 属性
     proto.add('dtstamp', datetime.utcnow())
-    namespace = uuid.UUID(bytes=
-        int(dt_start.timestamp()).to_bytes(length=8, byteorder='big') +
+    namespace = uuid.UUID(
+        bytes=int(dt_start.timestamp()).to_bytes(length=8, byteorder='big') +
         int(dt_end.timestamp()).to_bytes(length=8, byteorder='big')
     )
     proto.add('uid', uuid.uuid3(namespace, f"{exam.identifier}-考试-{exam.classifier}"))
     return proto
 
-def courses_make_ical(courses: List[Union[Course, ExperimentCourse]],
-              start: date,
-              schedule: Schedule = New2020Schedule()) -> Calendar:
+
+def courses_make_ical(
+    courses: List[Union[Course, ExperimentCourse]], start: date, schedule: Schedule = New2020Schedule()
+) -> Calendar:
     cal = Calendar()
     cal.add("prodid", "-//Zombie110year//CLI CQU//")
     cal.add("version", "2.0")
@@ -54,8 +56,7 @@ def courses_make_ical(courses: List[Union[Course, ExperimentCourse]],
     return cal
 
 
-def course_build_event(course: Union[Course, ExperimentCourse], start: date,
-                schedule: Schedule) -> List[Event]:
+def course_build_event(course: Union[Course, ExperimentCourse], start: date, schedule: Schedule) -> List[Event]:
     proto = Event()
     proto.add("summary", course.identifier)
     proto.add("location", course.location)
@@ -89,10 +90,9 @@ def course_build_event(course: Union[Course, ExperimentCourse], start: date,
 
         # RFC 5545 要求 VEVENT 必须存在 dtstamp 与 uid 属性
         ev.add('dtstamp', datetime.utcnow())
-        namespace = uuid.UUID(bytes=
-            int(dt_start.timestamp()).to_bytes(length=8, byteorder='big') +
+        namespace = uuid.UUID(
+            bytes=int(dt_start.timestamp()).to_bytes(length=8, byteorder='big') +
             int(dt_end.timestamp()).to_bytes(length=8, byteorder='big')
         )
         ev.add('uid', uuid.uuid3(namespace, f"{course.identifier}-{course.teacher}"))
     return results
-

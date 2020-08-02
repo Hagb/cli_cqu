@@ -1,8 +1,11 @@
 from .ua import UA_IE11
+
+
 class HOST:
     SCHEME = "http"
     DOMAIN = "jxgl.cqu.edu.cn"
     PREFIX = f"{SCHEME}://{DOMAIN}"
+
 
 HEADERS = {
     'host': HOST.DOMAIN,

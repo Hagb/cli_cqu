@@ -30,6 +30,7 @@ class Route:
         personal_exams = "/kssw/stu_ksap.aspx"
         # 查询考试安排
         personal_exams_table = "/kssw/stu_ksap_rpt.aspx"
+
     class Assignment:
         """成绩单
 
@@ -41,7 +42,7 @@ class Route:
         whole_assignment = "http://oldjw.cqu.edu.cn:8088/score/sel_score/sum_score_sel.asp"
 
 
-class Parsed: 
+class Parsed:
     class Assignment:
         class LoginIncorrectError(ValueError):
             pass
@@ -89,19 +90,17 @@ class Parsed:
             resp = session.post(Route.Assignment.oldjw_login, data=login_form)
             resp_text = resp.content.decode("gbk")
             if "你的密码不正确，请到教务处咨询(学生密码错误请向学院教务人员或辅导员查询)!" in resp_text:
-                raise Parsed.Assignment.LoginIncorrectError("学号或密码错误，老教务处的密码默认为身份证后六位，"
-                                 #
-                                 "或到教务处咨询(学生密码错误请向学院教务人员或辅导员查询)!")
+                raise Parsed.Assignment.LoginIncorrectError(
+                    "学号或密码错误，老教务处的密码默认为身份证后六位，"
+                    #
+                    "或到教务处咨询(学生密码错误请向学院教务人员或辅导员查询)!"
+                )
 
-            assignments = session.get(
-                Route.Assignment.whole_assignment).content.decode("gbk")
+            assignments = session.get(Route.Assignment.whole_assignment).content.decode("gbk")
             assparse = BeautifulSoup(assignments, "lxml")
 
             header_text = str(assparse.select_one("td > p:nth-child(2)"))
-            header = [
-                t for t in (re.sub(r"</b>|</?p>|\s", "", t)
-                            for t in header_text.split("<b>")) if t != ""
-            ]
+            header = [t for t in (re.sub(r"</b>|</?p>|\s", "", t) for t in header_text.split("<b>")) if t != ""]
 
             details = []
             for tr in assparse.select("tr")[3:-1]:
@@ -120,9 +119,7 @@ class Parsed:
                 }
                 details.append(data)
 
-            查询时间 = re.search(
-                r"查询时间：(2\d{3}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2})",
-                assignments)
+            查询时间 = re.search(r"查询时间：(2\d{3}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2})", assignments)
             table = {
                 "学号": header[0][3:],
                 "姓名": header[1][3:],
@@ -204,8 +201,14 @@ class Jxgl():
         else:
             raise ValueError("意料之外的登陆返回页面")
 
-
-    def __init__(self, username: str, password: str, jxglUrl: str = HOST.PREFIX, session: Optional[Session] = None, headers: dict = HEADERS) -> None:
+    def __init__(
+        self,
+        username: str,
+        password: str,
+        jxglUrl: str = HOST.PREFIX,
+        session: Optional[Session] = None,
+        headers: dict = HEADERS
+    ) -> None:
         "指定 jxglUrl 参数可以自定义教学管理系统的地址"
         self.username: str = username
         self.password: str = password
@@ -213,32 +216,31 @@ class Jxgl():
         self.session: Session = Session() if session is None else session
         self.session.headers.update(HEADERS)
 
-
-    def getExamsTerms(self) -> Dict[int,str]:
+    def getExamsTerms(self) -> Dict[int, str]:
         "解析考试安排页面，获取考试安排学期列表"
         url: str = f"{self.jxglUrl}{Route.TeachingArrangement.personal_exams}"
         return self.parseExamsTerms(self.session.get(url).text)
 
     @staticmethod
-    def parseExamsTerms(htmlText: str) -> Dict[int,str]:
-        el_学年学期 =  BeautifulSoup(htmlText, "lxml").select("select[name=sel_xnxq] > option")
-        return {int(i.attrs["value"]): i.text  for i in el_学年学期}
+    def parseExamsTerms(htmlText: str) -> Dict[int, str]:
+        el_学年学期 = BeautifulSoup(htmlText, "lxml").select("select[name=sel_xnxq] > option")
+        return {int(i.attrs["value"]): i.text for i in el_学年学期}
 
-    def getCoursesTerms(self) -> Dict[int,str]:
+    def getCoursesTerms(self) -> Dict[int, str]:
         "解析课表页面，获取学期列表"
         url: str = f"{self.jxglUrl}{Route.TeachingArrangement.personal_courses}"
         return self.parseCoursesTerms(self.session.get(url).text)
 
     @staticmethod
-    def parseCoursesTerms(htmlText: str) -> Dict[int,str]:
+    def parseCoursesTerms(htmlText: str) -> Dict[int, str]:
         el_学年学期 = BeautifulSoup(htmlText, "lxml").select("select[name=Sel_XNXQ] > option")
-        return {int(i.attrs["value"]): i.text  for i in el_学年学期}
+        return {int(i.attrs["value"]): i.text for i in el_学年学期}
 
     def getCourses(self, termId: int) -> List[Union[Course, ExperimentCourse]]:
         "获取指定学期的课程表"
         url = f"{self.jxglUrl}{Route.TeachingArrangement.personal_courses_table}"
         resp = self.session.post(url, data={"Sel_XNXQ": termId, "px": 0, "rad": "on"})
-        if("您正查看的此页已过期" in resp.text):
+        if ("您正查看的此页已过期" in resp.text):
             raise self.LoginExpired
         return self.parseCourses(resp.text)
 
@@ -250,7 +252,7 @@ class Jxgl():
     def getExams(self, termId: int) -> List[Exam]:
         url = f"{self.jxglUrl}{Route.TeachingArrangement.personal_exams_table}"
         resp = self.session.post(url, data={"sel_xnxq": termId})
-        if("您正查看的此页已过期" in resp.text):
+        if ("您正查看的此页已过期" in resp.text):
             raise self.LoginExpired
         return self.parseExams(resp.text)
 
@@ -266,13 +268,15 @@ class Jxgl():
     @staticmethod
     def _makeExam(tr: BeautifulSoup) -> Exam:
         td = tr.select("td")
-        return Exam(identifier=td[1].text,
-                    score=float(td[2].text),
-                    classifier=td[3].text,
-                    exam_type=td[4].text,
-                    time=td[5].text,
-                    location=td[6].text,
-                    seat_no=int(td[7].text))
+        return Exam(
+            identifier=td[1].text,
+            score=float(td[2].text),
+            classifier=td[3].text,
+            exam_type=td[4].text,
+            time=td[5].text,
+            location=td[6].text,
+            seat_no=int(td[7].text)
+        )
 
     @staticmethod
     def _makeCourse(tr: BeautifulSoup) -> Union[Course, ExperimentCourse]:
@@ -281,51 +285,32 @@ class Jxgl():
         # 第一列是序号，忽略
         if len(td) == 13:
             return Course(
-                identifier=td[1].text if td[1].text != "" else td[1].attrs.get(
-                    "hidevalue", ''),
-                score=float(td[2].text if td[2].text != "" else td[2].attrs.
-                            get("hidevalue", '')),
-                time_total=float(td[3].text if td[3].text != "" else td[3].attrs.
-                                 get("hidevalue", '')),
-                time_teach=float(td[4].text if td[4].text != "" else td[4].attrs.
-                                 get("hidevalue", '')),
-                time_practice=float(td[5].text if td[5].text != "" else td[5].
-                                    attrs.get("hidevalue", '')),
-                classifier=td[6].text if td[6].text != "" else td[6].attrs.get(
-                    "hidevalue", ''),
-                teach_type=td[7].text if td[7].text != "" else td[7].attrs.get(
-                    "hidevalue", ''),
-                exam_type=td[8].text if td[8].text != "" else td[8].attrs.get(
-                    "hidevalue", ''),
-                teacher=td[9].text if td[9].text != "" else td[9].attrs.get(
-                    "hidevalue", ''),
+                identifier=td[1].text if td[1].text != "" else td[1].attrs.get("hidevalue", ''),
+                score=float(td[2].text if td[2].text != "" else td[2].attrs.get("hidevalue", '')),
+                time_total=float(td[3].text if td[3].text != "" else td[3].attrs.get("hidevalue", '')),
+                time_teach=float(td[4].text if td[4].text != "" else td[4].attrs.get("hidevalue", '')),
+                time_practice=float(td[5].text if td[5].text != "" else td[5].attrs.get("hidevalue", '')),
+                classifier=td[6].text if td[6].text != "" else td[6].attrs.get("hidevalue", ''),
+                teach_type=td[7].text if td[7].text != "" else td[7].attrs.get("hidevalue", ''),
+                exam_type=td[8].text if td[8].text != "" else td[8].attrs.get("hidevalue", ''),
+                teacher=td[9].text if td[9].text != "" else td[9].attrs.get("hidevalue", ''),
                 week_schedule=td[10].text,
                 day_schedule=td[11].text,
-                location=td[12].text)
+                location=td[12].text
+            )
         elif len(td) == 12:
             return ExperimentCourse(
-                identifier=td[1].text if td[1].text != "" else td[1].attrs.get(
-                    "hidevalue", ''),
-                score=float(td[2].text if td[2].text != "" else td[2].attrs.
-                            get("hidevalue", '')),
-                time_total=float(td[3].text if td[3].text != "" else td[3].attrs.
-                                 get("hidevalue", '')),
-                time_teach=float(td[4].text if td[4].text != "" else td[4].attrs.
-                                 get("hidevalue", '')),
-                time_practice=float(td[5].text if td[5].text != "" else td[5].
-                                    attrs.get("hidevalue", '')),
-                project_name=td[6].text if td[6].text != "" else td[6].attrs.get(
-                    "hidevalue", ''),
-                teacher=td[7].text if td[7].text != "" else td[7].attrs.get(
-                    "hidevalue", ''),
-                hosting_teacher=td[8].text
-                if td[8].text != "" else td[8].attrs.get("hidevalue", ''),
-                week_schedule=td[9].text if td[9].text != "" else td[9].attrs.get(
-                    "hidevalue", ''),
-                day_schedule=td[10].text
-                if td[10].text != "" else td[10].attrs.get("hidevalue", ''),
-                location=td[11].text if td[11].text != "" else td[11].attrs.get(
-                    "hidevalue", ''),
+                identifier=td[1].text if td[1].text != "" else td[1].attrs.get("hidevalue", ''),
+                score=float(td[2].text if td[2].text != "" else td[2].attrs.get("hidevalue", '')),
+                time_total=float(td[3].text if td[3].text != "" else td[3].attrs.get("hidevalue", '')),
+                time_teach=float(td[4].text if td[4].text != "" else td[4].attrs.get("hidevalue", '')),
+                time_practice=float(td[5].text if td[5].text != "" else td[5].attrs.get("hidevalue", '')),
+                project_name=td[6].text if td[6].text != "" else td[6].attrs.get("hidevalue", ''),
+                teacher=td[7].text if td[7].text != "" else td[7].attrs.get("hidevalue", ''),
+                hosting_teacher=td[8].text if td[8].text != "" else td[8].attrs.get("hidevalue", ''),
+                week_schedule=td[9].text if td[9].text != "" else td[9].attrs.get("hidevalue", ''),
+                day_schedule=td[10].text if td[10].text != "" else td[10].attrs.get("hidevalue", ''),
+                location=td[11].text if td[11].text != "" else td[11].attrs.get("hidevalue", ''),
             )
         else:
             logging.error("未知的数据结构")
@@ -341,4 +326,3 @@ class Jxgl():
         "赋值给: efdfdfuuyyuuckjg"
         schoolcode = "10611"
         return Jxgl._md5(username + Jxgl._md5(password)[0:30].upper() + schoolcode)[0:30].upper()
-

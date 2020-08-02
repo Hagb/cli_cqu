@@ -85,9 +85,9 @@ class App:
     def courses_ical(self):
         "获取课程表，转化为 icalendar 格式日历日程"
         print("=== 下载课程表，保存为 ICalendar ===")
-        xnxq_value_ref=[None]
+        xnxq_value_ref = [None]
         courses = self.__get_courses(xnxq_value_ref)
-        if(xnxq_value_ref[0] < 20200):
+        if (xnxq_value_ref[0] < 20200):
             print("=== 选择校区 ===")
             print("0: 沙坪坝校区\n1: 虎溪校区")
             schedule = ShaPingBaSchedule() if input('选择校区[0|1]> ').strip() == '0' else HuxiSchedule()
@@ -124,7 +124,6 @@ class App:
         with open(filename, "wb") as out:
             out.write(cal.to_ical())
 
-
     def __get_exams(self):
         info = self.jxgl.getExamsTerms()
         print("=== 选择学年学期 ===")
@@ -147,7 +146,8 @@ class App:
 
 def show_help():
     print("=== help ===")
-    print("""在 `cli cqu>` 提示符后输入指令
+    print(
+        """在 `cli cqu>` 提示符后输入指令
 
     目前提供以下指令：
     * courses-json * 获取 JSON 格式的课程表
@@ -159,7 +159,8 @@ def show_help():
     
     只能在命令行参数中使用的指令：
     * assignments-json * 从老教务网获取全部成绩，保存为 JSON 格式
-    """)
+    """
+    )
 
 
 def welcome():
@@ -184,7 +185,7 @@ def cli_main():
         else:
             app.mainloop()
     elif args.cmd.startswith("assignments-json"):
-        single_assignments_json(args.username, args.password)        
+        single_assignments_json(args.username, args.password)
 
 
 def single_assignments_json(username, password):
