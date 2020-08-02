@@ -7,18 +7,29 @@ from datetime import time
 from datetime import timedelta
 from datetime import timezone
 from typing import Tuple
-from ..data.schedule import HuxiSchedule, ShaPingBaSchedule
+from ..data.schedule import Schedule, New2020Schedule
 import re
 import logging
 
-__all__ = ("materialize_calendar")
+__all__ = ("exam_materialize_calendar", "course_materialize_calendar")
 
 # 14节 表示全天
 FULL_DAY = 14
+# timezone(timedelta(hours=8), "Asia/Shanghai"): 北京时间
+TIMEZONE = timezone(timedelta(hours=8), "Asia/Shanghai")
+p_day_lesson: re.Pattern = re.compile(r"^(?P<day>[一二三四五六日])\[(?P<lesson>[\d\-]+)节\]$")
+re_exam: re.Pattern = re.compile(r'^(\d{4}-\d{2}-\d{2})\(\d+周 星期[一二三四五六日]\)(\d{2}:\d{2})-(\d{2}:\d{2})$')
 
+def exam_materialize_calendar(exam_time: str) -> Tuple[datetime, datetime]:
+    time_strs: re.Match = re_exam.match(exam_time)
+    exam_date: datetime = date.fromisoformat(time_strs[1])
+    return [
+        datetime.combine(exam_date, time.fromisoformat(time_strs[2]), TIMEZONE),
+        datetime.combine(exam_date, time.fromisoformat(time_strs[3]), TIMEZONE)
+    ]
 
-def materialize_calendar(t_week: str, t_lesson: str, start: date,
-                         schedule=ShaPingBaSchedule()) -> Tuple[datetime, datetime]:
+def course_materialize_calendar(t_week: str, t_lesson: str, start: date,
+                         schedule: Schedule = New2020Schedule()) -> Tuple[datetime, datetime]:
     """具体化时间日期，将一个 周次+节次 字符串转换成具体的 datetime
 
     例如
@@ -33,7 +44,6 @@ def materialize_calendar(t_week: str, t_lesson: str, start: date,
     >>> materialize_calendar(t_week="1", t_lesson="一[14节]", start=date(2020, 2, 17))
     (datetime(2019, 2, 17, 8), datetime(2017, 2, 17, 23, 59))
     """
-    p_day_lesson: re.Pattern = re.compile(r"^(?P<day>[一二三四五六日])\[(?P<lesson>[\d\-]+)节\]$")
     m_day_lesson: re.Match = p_day_lesson.fullmatch(t_lesson)
     d_day_lesson: dict = m_day_lesson.groupdict()
     i_week: int = int(t_week)
@@ -56,8 +66,7 @@ def materialize_calendar(t_week: str, t_lesson: str, start: date,
         raise TypeError(f"{i_lesson} 为 {type(i_lesson)} 类型")
     partial_td: Tuple[timedelta, timedelta] = (timedelta(days=partial_days) + partial_times[0],
                                                timedelta(days=partial_days) + partial_times[1])
-    # timezone(timedelta(hours=8), "Asia/Shanghai"): 北京时间
-    dt: datetime = datetime.combine(start, time.min, timezone(timedelta(hours=8), "Asia/Shanghai"))
+    dt: datetime = datetime.combine(start, time.min, TIMEZONE)
     result = (dt + partial_td[0], dt + partial_td[1])
     return result
 

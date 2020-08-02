@@ -9,7 +9,8 @@ from typing import *
 from .data.route import Parsed
 from .data.schedule import HuxiSchedule, ShaPingBaSchedule, New2020Schedule
 from .excpetion.signal import *
-from .util.calendar import make_ical
+from .util.calendar import courses_make_ical
+from .util.calendar import exams_make_ical
 from .data.route import Jxgl
 
 __version__ = '0.4.1'
@@ -66,6 +67,8 @@ class App:
             self.courses_ical()
         elif cmd == "exams-json":
             self.exams_json()
+        elif cmd == "exams-ical":
+            self.exams_ical()
         else:
             raise SigHelp(f"!!! 未处理的命令： {cmd} !!!")
         raise SigDone
@@ -93,7 +96,7 @@ class App:
             schedule = New2020Schedule()
 
         d_start: date = date.fromisoformat(input("学期开始日期 yyyy-mm-dd> ").strip())
-        cal = make_ical(courses, d_start, schedule)
+        cal = courses_make_ical(courses, d_start, schedule)
         filename = input("文件名（可忽略 ics 后缀）> ").strip()
         if not filename.endswith(".ics"):
             filename = f"{filename}.ics"
@@ -109,6 +112,19 @@ class App:
             filename = f"{filename}.json"
         with open(filename, "wt", encoding="utf-8") as out:
             json.dump([i.dict() for i in exams], out, indent=2, ensure_ascii=False)
+
+    def exams_ical(self):
+        "获取考试安排，转化为 icalendar 格式日历日程"
+        print("=== 下载考试安排，保存为 ICalendar ===")
+        exams = self.__get_exams()
+
+        cal = exams_make_ical(exams)
+        filename = input("文件名（可忽略 ics 后缀）> ").strip()
+        if not filename.endswith(".ics"):
+            filename = f"{filename}.ics"
+        with open(filename, "wb") as out:
+            out.write(cal.to_ical())
+
 
     def __get_exams(self):
         info = self.jxgl.getExamsTerms()
@@ -138,6 +154,7 @@ def show_help():
     * courses-json * 获取 JSON 格式的课程表
     * courses-ical * 获取 ICalendar 日历日程格式的课程表
     * exams-json   * 获取 JSON 格式的考试安排
+    * exams-ical   * 获取 ICalendar 日历日程格式的考试
     * help | h | ? * 获取帮助信息
     * exit * 退出程序
     

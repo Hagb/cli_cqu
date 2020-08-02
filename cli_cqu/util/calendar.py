@@ -9,29 +9,61 @@ import re
 from icalendar import Calendar
 from icalendar import Event
 from copy import deepcopy
-from ..data.schedule import HuxiSchedule
-from ..data.schedule import ShaPingBaSchedule
+from ..data.schedule import New2020Schedule
+from ..data.schedule import Schedule
 from ..model import Course
 from ..model import ExperimentCourse
-from ..util.datetime import materialize_calendar
+from ..model import Exam
+from ..util.datetime import course_materialize_calendar
+from ..util.datetime import exam_materialize_calendar
 
-__all__ = ("make_ical")
+__all__ = ("exams_make_ical", "courses_make_ical")
 
 
-def make_ical(courses: List[Union[Course, ExperimentCourse]],
+def exams_make_ical(exams: List[Exam]) -> Calendar:
+    cal = Calendar()
+    cal.add("prodid", "-//Zombie110year//CLI CQU//")
+    cal.add("version", "2.0")
+    for exam in exams:
+        cal.add_component(exam_build_event(exam))
+    return cal
+
+def exam_build_event(exam: Exam) -> Event:
+    proto = Event()
+    proto.add("summary", f"{exam.identifier}-考试")
+    proto.add("location", f"{exam.location}-座位号{exam.seat_no}")
+    proto.add("description", f"考试\n学分：{exam.score}" +
+              (f"\n类别：{exam.classifier}" if exam.classifier else '') +
+              (f"\n考核方式：{exam.exam_type}" if exam.exam_type else '' )
+    )
+
+    dt_start, dt_end = exam_materialize_calendar(exam.time)
+    proto.add("dtstart", dt_start)
+    proto.add("dtend", dt_end)
+
+    # RFC 5545 要求 VEVENT 必须存在 dtstamp 与 uid 属性
+    proto.add('dtstamp', datetime.utcnow())
+    namespace = uuid.UUID(bytes=
+        int(dt_start.timestamp()).to_bytes(length=8, byteorder='big') +
+        int(dt_end.timestamp()).to_bytes(length=8, byteorder='big')
+    )
+    proto.add('uid', uuid.uuid3(namespace, f"{exam.identifier}-考试-{exam.classifier}"))
+    return proto
+
+def courses_make_ical(courses: List[Union[Course, ExperimentCourse]],
               start: date,
-              schedule: Union[HuxiSchedule, ShaPingBaSchedule] = ShaPingBaSchedule()) -> Calendar:
+              schedule: Schedule = New2020Schedule()) -> Calendar:
     cal = Calendar()
     cal.add("prodid", "-//Zombie110year//CLI CQU//")
     cal.add("version", "2.0")
     for course in courses:
-        for ev in build_event(course, start, schedule):
+        for ev in course_build_event(course, start, schedule):
             cal.add_component(ev)
     return cal
 
 
-def build_event(course: Union[Course, ExperimentCourse], start: date,
-                schedule: Union[HuxiSchedule, ShaPingBaSchedule]) -> List[Event]:
+def course_build_event(course: Union[Course, ExperimentCourse], start: date,
+                schedule: Schedule) -> List[Event]:
     proto = Event()
     proto.add("summary", course.identifier)
     proto.add("location", course.location)
@@ -48,7 +80,7 @@ def build_event(course: Union[Course, ExperimentCourse], start: date,
         ev: Event = deepcopy(proto)
         t_week = re.match(r"^(\d+)", week)[1]
         t_lesson = course.day_schedule
-        first_lesson = materialize_calendar(t_week, t_lesson, start, schedule)
+        first_lesson = course_materialize_calendar(t_week, t_lesson, start, schedule)
         dt_start, dt_end = first_lesson
 
         ev.add("dtstart", dt_start)
