@@ -64,6 +64,21 @@ CLI CQU 提供了命令行界面。
 
 之后将会从老教务网获取成绩单，并解析为 JSON 保存。
 
+开发
+====
+
+可以将 cli_cqu 作为库来使用，简单（但全面）的示例见 `example <example>`_ 。
+
+亦可参看 `cli_cqu.data.route` 中 `Jxgl` 和 `Parsed.Assignment` 以及
+`cli_cqu.util.calendar` 中 `exams_make_ical` 和 `courses_make_ical` 的说明。
+
+.. code:: python
+
+   import cli_cqu.data.route as route
+   import cli_cqu.util.calendar as calendar
+   help(route)
+   help(calendar)
+
 安装
 ====
 
@@ -83,8 +98,9 @@ CLI CQU 提供了命令行界面。
 - `cli_cqu` App 对象和命令行接口
     - `cli_cqu.data` 模块是需要用到的数据，例如常量、路由、解析规则（函数）等。
         - `cli_cqu.data.ua` User-Agent。
-        - `cli_cqu.data.js_equality` 与 jxgl 网页前端的 js 等效的一些函数。
         - `cli_cqu.data.route` 路由，根据 jxgl 的功能模块分类
     - `cli_cqu.exception` 定义的一些异常
         - `cli_cqu.exception.signal` 充当信号作用的异常
+    - `cli_cqu.util`
+        - `cli_cqu.util.calendar` 将考试安排或课程表解析成 Calendar 对象
     - `cli_cqu.model` 数据模型

@@ -19,3 +19,4 @@ HEADERS = {
     'accept-encoding': "gzip, deflate",
     'accept-language': "zh-CN,zh;q=0.9",
 }
+"默认使用的请求头"

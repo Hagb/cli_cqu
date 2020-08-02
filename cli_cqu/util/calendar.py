@@ -13,6 +13,10 @@ __all__ = ("exams_make_ical", "courses_make_ical")
 
 
 def exams_make_ical(exams: List[Exam]) -> Calendar:
+    """生成考试安排的 Calendar 对象
+
+    :param list exams: 考试安排
+    """
     cal = Calendar()
     cal.add("prodid", "-//Zombie110year//CLI CQU//")
     cal.add("version", "2.0")
@@ -47,6 +51,13 @@ def exam_build_event(exam: Exam) -> Event:
 def courses_make_ical(
     courses: List[Union[Course, ExperimentCourse]], start: date, schedule: Schedule = New2020Schedule()
 ) -> Calendar:
+    """生成课程表的 Calendar 对象
+
+    :param list courses: 课程表
+    :param date start: 学期的第一天，如 date(2020,8,31)
+    :parm Schedule schedule: (可选) 将节次和时间对应起来的时间表，默认是 2020~2021 学年开始使用的时间表.
+                             cli_cqu.data.schedule 中可以找到别的其它时间表
+    """
     cal = Calendar()
     cal.add("prodid", "-//Zombie110year//CLI CQU//")
     cal.add("version", "2.0")

@@ -132,18 +132,28 @@ class Parsed:
 
 
 class Jxgl():
-    "与教学管理系统的交互"
+    """与教学管理系统交互
+
+    :param str username: 教学管理系统的用户名（学号）
+    :param str password: 教学管理系统的密码
+    :param str jxglUrl: (可选) 教学管理系统的地址（含协议名及域名，如"http://jxgl.cqu.edu.cn")
+    :param Session session: (可选) 自定义 Session 对象
+    :param dict headers: (可选) 访问教学管理系统使用的请求头
+
+    创建后不会自动登陆，需要使用 login 方法来登陆
+    """
+
 
     class NoUserError(ValueError):
-        "使用了不存在的用户名的登陆错误"
+        "使用了不存在的用户名的登陆错误时抛出的异常"
         pass
 
     class LoginIncorrectError(ValueError):
-        "用户名或密码不正确的登陆错误"
+        "用户名或密码不正确的登陆错误时抛出的异常"
         pass
 
     class LoginExpired(Exception):
-        "登陆 cookies 过期或尚未登陆"
+        "登陆 cookies 过期或尚未登陆时抛出的异常"
         pass
 
     jxglUrl: str
@@ -154,7 +164,7 @@ class Jxgl():
     def login(self) -> None:
         """向主页发出请求，发送帐号密码表单，获取 cookie
 
-        帐号或密码错误则抛出异常
+        帐号或密码错误则抛出异常 NoUserError 或 LoginIncorrectError
         """
         # 初始化 Cookie
         url = f"{self.jxglUrl}/home.aspx"
@@ -209,7 +219,6 @@ class Jxgl():
         session: Optional[Session] = None,
         headers: dict = HEADERS
     ) -> None:
-        "指定 jxglUrl 参数可以自定义教学管理系统的地址"
         self.username: str = username
         self.password: str = password
         self.jxglUrl: str = jxglUrl
@@ -217,27 +226,39 @@ class Jxgl():
         self.session.headers.update(HEADERS)
 
     def getExamsTerms(self) -> Dict[int, str]:
-        "解析考试安排页面，获取考试安排学期列表"
+        """获取考试安排的学期列表
+
+        返回一个字典，结构：{学期编号(int): 学期名称(str)}
+        注：似乎只会有一个学期
+        """
         url: str = f"{self.jxglUrl}{Route.TeachingArrangement.personal_exams}"
         return self.parseExamsTerms(self.session.get(url).text)
 
     @staticmethod
     def parseExamsTerms(htmlText: str) -> Dict[int, str]:
+        """解析考试安排学期列表的 html 文本"""
         el_学年学期 = BeautifulSoup(htmlText, "lxml").select("select[name=sel_xnxq] > option")
         return {int(i.attrs["value"]): i.text for i in el_学年学期}
 
     def getCoursesTerms(self) -> Dict[int, str]:
-        "解析课表页面，获取学期列表"
+        """获取课程表的学期列表
+
+        返回一个字典，结构：{学期编号(int): 学期名称(str)}
+        """
         url: str = f"{self.jxglUrl}{Route.TeachingArrangement.personal_courses}"
         return self.parseCoursesTerms(self.session.get(url).text)
 
     @staticmethod
     def parseCoursesTerms(htmlText: str) -> Dict[int, str]:
+        """解析课程表学期列表的 html 文本"""
         el_学年学期 = BeautifulSoup(htmlText, "lxml").select("select[name=Sel_XNXQ] > option")
         return {int(i.attrs["value"]): i.text for i in el_学年学期}
 
     def getCourses(self, termId: int) -> List[Union[Course, ExperimentCourse]]:
-        "获取指定学期的课程表"
+        """获取指定学期的课程表
+
+        :param int termId: 学期编号，包含在 getCoursesTerms 方法的返回值中
+        """
         url = f"{self.jxglUrl}{Route.TeachingArrangement.personal_courses_table}"
         resp = self.session.post(url, data={"Sel_XNXQ": termId, "px": 0, "rad": "on"})
         if ("您正查看的此页已过期" in resp.text):
@@ -246,10 +267,15 @@ class Jxgl():
 
     @staticmethod
     def parseCourses(htmlText: str) -> List[Union[Course, ExperimentCourse]]:
+        """解析课程表的 html 文本"""
         listing = BeautifulSoup(htmlText, "lxml").select("table > tbody > tr")
         return [Jxgl._makeCourse(i) for i in listing]
 
     def getExams(self, termId: int) -> List[Exam]:
+        """获取指定学期的考试安排
+
+        :param int termId: 学期编号，包含在 getExamsTerms 方法的返回值中
+        """
         url = f"{self.jxglUrl}{Route.TeachingArrangement.personal_exams_table}"
         resp = self.session.post(url, data={"sel_xnxq": termId})
         if ("您正查看的此页已过期" in resp.text):
@@ -258,11 +284,15 @@ class Jxgl():
 
     @staticmethod
     def parseExams(htmlText: str) -> List[Exam]:
+        """解析考试安排的 html 文本"""
         listing = BeautifulSoup(htmlText, "lxml").select("table[ID=ID_Table] > tr")
         return [Jxgl._makeExam(i) for i in listing]
 
     def isLogined(self) -> bool:
-        "返回 True 则表明已成功登陆"
+        """判断是否处于登陆状态
+
+        处于登陆状态则返回 True，否则返回 False
+        """
         return self.session.get(f"{self.jxglUrl}{Route.logintest}", allow_redirects=False).status_code == 200
 
     @staticmethod
