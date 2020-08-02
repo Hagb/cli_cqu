@@ -4,13 +4,12 @@ import json
 from argparse import ArgumentParser
 from datetime import date
 from getpass import getpass
-from typing import *
+from typing import Generator
 
 from .data.route import Parsed
 from .data.schedule import HuxiSchedule, ShaPingBaSchedule, New2020Schedule
-from .excpetion.signal import *
-from .util.calendar import courses_make_ical
-from .util.calendar import exams_make_ical
+from .excpetion.signal import SigHelp, SigContinue, SigExit, Signal, SigDone
+from .util.calendar import courses_make_ical, exams_make_ical
 from .data.route import Jxgl
 
 __version__ = '0.4.1'

@@ -3,19 +3,14 @@
 import logging
 import re
 import time
-from typing import List
-from typing import Union
-from typing import Dict
+from typing import List, Union, Dict, Optional
+from hashlib import md5
 
 from bs4 import BeautifulSoup
 from requests import Session
 
-from ..model import Course
-from ..model import ExperimentCourse
-from ..model import Exam
-from . import HOST
-from .js_equality import chkpwd
-from .ua import UA_IE11
+from ..model import Course, ExperimentCourse, Exam
+from . import HOST, HEADERS
 
 __all__ = ("Route", "Parsed", "Jxgl")
 
@@ -161,6 +156,7 @@ class Jxgl():
 
     def login(self) -> None:
         """向主页发出请求，发送帐号密码表单，获取 cookie
+
         帐号或密码错误则抛出异常
         """
         # 初始化 Cookie
@@ -171,6 +167,7 @@ class Jxgl():
         pattern = re.compile(r"(?<=document.cookie=')DSafeId=([A-Z0-9]+);(?=';)")
         if pattern.search(resp.text):
             first_cookie = re.search(pattern, resp.text)[1]
+            assert isinstance(first_cookie, re.Match)
             self.session.cookies.set("DSafeId", first_cookie)
             time.sleep(0.680)
             resp = self.session.get(url)
@@ -195,7 +192,7 @@ class Jxgl():
             "pcInfo": "",
             "typeName": "",
             "aerererdsdxcxdfgfg": "",
-            "efdfdfuuyyuuckjg": chkpwd(self.username, self.password),
+            "efdfdfuuyyuuckjg": self._chkpwd(self.username, self.password),
         }
         page_text = self.session.post(url, data=login_form).content.decode(encoding='GBK')
         if "正在加载权限数据..." in page_text:
@@ -208,40 +205,33 @@ class Jxgl():
             raise ValueError("意料之外的登陆返回页面")
 
 
-    def __init__(self, username: str, password: str, jxglUrl: str = HOST.PREFIX) -> None:
+    def __init__(self, username: str, password: str, jxglUrl: str = HOST.PREFIX, session: Optional[Session] = None, headers: dict = HEADERS) -> None:
         "指定 jxglUrl 参数可以自定义教学管理系统的地址"
         self.username: str = username
         self.password: str = password
         self.jxglUrl: str = jxglUrl
-        self.session = Session()
-        self.session.headers.update({
-            'host': HOST.DOMAIN,
-            'connection': "keep-alive",
-            'cache-control': "max-age=0",
-            'upgrade-insecure-requests': "1",
-            'user-agent': UA_IE11,
-            'accept':
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
-            'referer': HOST.PREFIX,
-            'accept-encoding': "gzip, deflate",
-            'accept-language': "zh-CN,zh;q=0.9",
-        })
+        self.session: Session = Session() if session is None else session
+        self.session.headers.update(HEADERS)
 
 
     def getExamsTerms(self) -> Dict[int,str]:
         "解析考试安排页面，获取考试安排学期列表"
         url: str = f"{self.jxglUrl}{Route.TeachingArrangement.personal_exams}"
-        resp = self.session.get(url)
-        html = BeautifulSoup(resp.text, "lxml")
-        el_学年学期 = html.select("select[name=sel_xnxq] > option")
+        return self.parseExamsTerms(self.session.get(url).text)
+
+    @staticmethod
+    def parseExamsTerms(htmlText: str) -> Dict[int,str]:
+        el_学年学期 =  BeautifulSoup(htmlText, "lxml").select("select[name=sel_xnxq] > option")
         return {int(i.attrs["value"]): i.text  for i in el_学年学期}
 
     def getCoursesTerms(self) -> Dict[int,str]:
         "解析课表页面，获取学期列表"
         url: str = f"{self.jxglUrl}{Route.TeachingArrangement.personal_courses}"
-        resp = self.session.get(url)
-        html = BeautifulSoup(resp.text, "lxml")
-        el_学年学期 = html.select("select[name=Sel_XNXQ] > option")
+        return self.parseCoursesTerms(self.session.get(url).text)
+
+    @staticmethod
+    def parseCoursesTerms(htmlText: str) -> Dict[int,str]:
+        el_学年学期 = BeautifulSoup(htmlText, "lxml").select("select[name=Sel_XNXQ] > option")
         return {int(i.attrs["value"]): i.text  for i in el_学年学期}
 
     def getCourses(self, termId: int) -> List[Union[Course, ExperimentCourse]]:
@@ -250,21 +240,31 @@ class Jxgl():
         resp = self.session.post(url, data={"Sel_XNXQ": termId, "px": 0, "rad": "on"})
         if("您正查看的此页已过期" in resp.text):
             raise self.LoginExpired
-        html = BeautifulSoup(resp.text, "lxml")
-        listing = html.select("table > tbody > tr")
-        return [self.makeCourse(i) for i in listing]
+        return self.parseCourses(resp.text)
+
+    @staticmethod
+    def parseCourses(htmlText: str) -> List[Union[Course, ExperimentCourse]]:
+        listing = BeautifulSoup(htmlText, "lxml").select("table > tbody > tr")
+        return [Jxgl._makeCourse(i) for i in listing]
 
     def getExams(self, termId: int) -> List[Exam]:
         url = f"{self.jxglUrl}{Route.TeachingArrangement.personal_exams_table}"
         resp = self.session.post(url, data={"sel_xnxq": termId})
         if("您正查看的此页已过期" in resp.text):
             raise self.LoginExpired
-        html = BeautifulSoup(resp.text, "lxml")
-        listing = html.select("table[ID=ID_Table] > tr")
-        return [self.makeExam(i) for i in listing]
+        return self.parseExams(resp.text)
 
     @staticmethod
-    def makeExam(tr: BeautifulSoup) -> Exam:
+    def parseExams(htmlText: str) -> List[Exam]:
+        listing = BeautifulSoup(htmlText, "lxml").select("table[ID=ID_Table] > tr")
+        return [Jxgl._makeExam(i) for i in listing]
+
+    def isLogined(self) -> bool:
+        "返回 True 则表明已成功登陆"
+        return self.session.get(f"{self.jxglUrl}{Route.logintest}", allow_redirects=False).status_code == 200
+
+    @staticmethod
+    def _makeExam(tr: BeautifulSoup) -> Exam:
         td = tr.select("td")
         return Exam(identifier=td[1].text,
                     score=float(td[2].text),
@@ -275,7 +275,7 @@ class Jxgl():
                     seat_no=int(td[7].text))
 
     @staticmethod
-    def makeCourse(tr: BeautifulSoup) -> Union[Course, ExperimentCourse]:
+    def _makeCourse(tr: BeautifulSoup) -> Union[Course, ExperimentCourse]:
         "根据传入的 tr 元素，获取对应的 Course 对象"
         td = tr.select("td")
         # 第一列是序号，忽略
@@ -332,6 +332,13 @@ class Jxgl():
             logging.error(tr.prettify())
             raise ValueError("未知的数据结构")
 
-    def isLogined(self) -> bool:
-        "返回 True 则表面已成功登陆"
-        return self.session.get(f"{self.jxglUrl}{Route.logintest}", allow_redirects=False).status_code == 200
+    @staticmethod
+    def _md5(string: str) -> str:
+        return md5(string.encode()).hexdigest().upper()
+
+    @staticmethod
+    def _chkpwd(username: str, password: str) -> str:
+        "赋值给: efdfdfuuyyuuckjg"
+        schoolcode = "10611"
+        return Jxgl._md5(username + Jxgl._md5(password)[0:30].upper() + schoolcode)[0:30].upper()
+

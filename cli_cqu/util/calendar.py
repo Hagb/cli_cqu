@@ -1,21 +1,13 @@
 """制作日历日程"""
 import uuid
-from datetime import datetime
-from datetime import date
-from typing import List
-from typing import Tuple
-from typing import Union
+from datetime import datetime, date
+from typing import List, Union
 import re
-from icalendar import Calendar
-from icalendar import Event
+from icalendar import Calendar, Event
 from copy import deepcopy
-from ..data.schedule import New2020Schedule
-from ..data.schedule import Schedule
-from ..model import Course
-from ..model import ExperimentCourse
-from ..model import Exam
-from ..util.datetime import course_materialize_calendar
-from ..util.datetime import exam_materialize_calendar
+from ..data.schedule import New2020Schedule, Schedule
+from ..model import Course, ExperimentCourse, Exam
+from ..util.datetime import course_materialize_calendar, exam_materialize_calendar
 
 __all__ = ("exams_make_ical", "courses_make_ical")
 
@@ -104,26 +96,3 @@ def course_build_event(course: Union[Course, ExperimentCourse], start: date,
         ev.add('uid', uuid.uuid3(namespace, f"{course.identifier}-{course.teacher}"))
     return results
 
-
-# depracated
-def make_range(string: str) -> List[Tuple[str]]:
-    """将 ``1-9``, ``1-4,6-9`` 这样的字符串解析为最小单位（a-b 或 n）序列。
-    源字符串中 ``s-e`` 表示一个闭区间
-
-    >>> make_range("1")
-    [1]
-    >>> make_range("1-9")
-    [(1, 9)]
-    >>> make_range("1,3-9")
-    [1, (3, 9)]
-    """
-    ans = list()
-    for component in string.split(","):
-        if re.fullmatch(r"\d+", component):
-            ans.append(int(component))
-        elif re.fullmatch(r"\d+-\d+", component):
-            r = tuple([int(x) for x in component.split("-")])
-            ans.append(r)
-        else:
-            raise ValueError(f"字符串 {string} 格式有问题，{component} 无法解析")
-    return ans
