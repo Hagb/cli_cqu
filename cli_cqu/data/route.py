@@ -48,13 +48,14 @@ class Parsed:
             pass
 
         @staticmethod
-        def whole_assignment(u: str, p: str) -> dict:
+        def whole_assignment(u: str, p: str, kwargs: dict = {}) -> dict:
             """通过老教务网接口获取成绩单。
 
             登录密码和新教务网不同，如果没修改过，应为身份证后 6 位。
 
             :param str u: 学号
             :param str p: 登录密码
+            :param dict kwargs: (可选) 连接时传递给 requests 库的额外参数（详见 requests 库中的 request）
 
             包含字段::
 
@@ -87,7 +88,7 @@ class Parsed:
                 "select1": "#"
             }
             session = Session()
-            resp = session.post(Route.Assignment.oldjw_login, data=login_form)
+            resp = session.post(Route.Assignment.oldjw_login, data=login_form, **kwargs)
             resp_text = resp.content.decode("gbk")
             if "你的密码不正确，请到教务处咨询(学生密码错误请向学院教务人员或辅导员查询)!" in resp_text:
                 raise Parsed.Assignment.LoginIncorrectError(
@@ -96,7 +97,7 @@ class Parsed:
                     "或到教务处咨询(学生密码错误请向学院教务人员或辅导员查询)!"
                 )
 
-            assignments = session.get(Route.Assignment.whole_assignment).content.decode("gbk")
+            assignments = session.get(Route.Assignment.whole_assignment, **kwargs).content.decode("gbk")
             assparse = BeautifulSoup(assignments, "lxml")
 
             header_text = str(assparse.select_one("td > p:nth-child(2)"))
@@ -161,14 +162,16 @@ class Jxgl():
     password: str
     session: Session
 
-    def login(self) -> None:
+    def login(self, kwargs: dict = {}) -> None:
         """向主页发出请求，发送帐号密码表单，获取 cookie
+
+        :param dict kwargs: (可选) 连接时传递给 requests 库的额外参数（详见 requests 库中的 request）
 
         帐号或密码错误则抛出异常 NoUserError 或 LoginIncorrectError
         """
         # 初始化 Cookie
         url = f"{self.jxglUrl}/home.aspx"
-        resp = self.session.get(url)
+        resp = self.session.get(url, **kwargs)
         # fix: 偶尔不需要设置 cookie, 直接就进入主页了
         # 这是跳转页 JavaScript 的等效代码
         pattern = re.compile(r"(?<=document.cookie=')DSafeId=([A-Z0-9]+);(?=';)")
@@ -176,7 +179,7 @@ class Jxgl():
             first_cookie = re.search(pattern, resp.text)[1]
             self.session.cookies.set("DSafeId", first_cookie)
             time.sleep(0.680)
-            resp = self.session.get(url)
+            resp = self.session.get(url, **kwargs)
             new_cookie = resp.headers.get("set-cookie", self.session.cookies.get_dict())
             c = {
                 1: re.search("(?<=ASP.NET_SessionId=)([a-zA-Z0-9]+)(?=;)", new_cookie)[1],
@@ -187,7 +190,7 @@ class Jxgl():
 
         # 发送表单
         url = f"{self.jxglUrl}/_data/index_login.aspx"
-        html = BeautifulSoup(self.session.get(url).text, "lxml")
+        html = BeautifulSoup(self.session.get(url, **kwargs).text, "lxml")
         login_form = {
             "__VIEWSTATE": html.select_one("#Logon > input[name=__VIEWSTATE]")["value"],
             "__VIEWSTATEGENERATOR": html.select_one("#Logon > input[name=__VIEWSTATEGENERATOR]")["value"],
@@ -200,7 +203,7 @@ class Jxgl():
             "aerererdsdxcxdfgfg": "",
             "efdfdfuuyyuuckjg": self._chkpwd(self.username, self.password),
         }
-        page_text = self.session.post(url, data=login_form).content.decode(encoding='GBK')
+        page_text = self.session.post(url, data=login_form, **kwargs).content.decode(encoding='GBK')
         if "正在加载权限数据..." in page_text:
             return
         if "账号或密码不正确！请重新输入。" in page_text:
@@ -224,14 +227,16 @@ class Jxgl():
         self.session: Session = Session() if session is None else session
         self.session.headers.update(HEADERS)
 
-    def getExamsTerms(self) -> Dict[int, str]:
+    def getExamsTerms(self, kwargs: dict = {}) -> Dict[int, str]:
         """获取考试安排的学期列表
+
+        :param dict kwargs: (可选) 连接时传递给 requests 库的额外参数（详见 requests 库中的 request）
 
         返回一个字典，结构：{学期编号(int): 学期名称(str)}
         注：似乎只会有一个学期
         """
         url: str = f"{self.jxglUrl}{Route.TeachingArrangement.personal_exams}"
-        return self.parseExamsTerms(self.session.get(url).text)
+        return self.parseExamsTerms(self.session.get(url, **kwargs).text)
 
     @staticmethod
     def parseExamsTerms(htmlText: str) -> Dict[int, str]:
@@ -239,13 +244,15 @@ class Jxgl():
         el_学年学期 = BeautifulSoup(htmlText, "lxml").select("select[name=sel_xnxq] > option")
         return {int(i.attrs["value"]): i.text for i in el_学年学期}
 
-    def getCoursesTerms(self) -> Dict[int, str]:
+    def getCoursesTerms(self, kwargs: dict = {}) -> Dict[int, str]:
         """获取课程表的学期列表
+
+        :param dict kwargs: (可选) 连接时传递给 requests 库的额外参数（详见 requests 库中的 request）
 
         返回一个字典，结构：{学期编号(int): 学期名称(str)}
         """
         url: str = f"{self.jxglUrl}{Route.TeachingArrangement.personal_courses}"
-        return self.parseCoursesTerms(self.session.get(url).text)
+        return self.parseCoursesTerms(self.session.get(url, **kwargs).text)
 
     @staticmethod
     def parseCoursesTerms(htmlText: str) -> Dict[int, str]:
@@ -253,13 +260,14 @@ class Jxgl():
         el_学年学期 = BeautifulSoup(htmlText, "lxml").select("select[name=Sel_XNXQ] > option")
         return {int(i.attrs["value"]): i.text for i in el_学年学期}
 
-    def getCourses(self, termId: int) -> List[Union[Course, ExperimentCourse]]:
+    def getCourses(self, termId: int, kwargs: dict = {}) -> List[Union[Course, ExperimentCourse]]:
         """获取指定学期的课程表
 
         :param int termId: 学期编号，包含在 getCoursesTerms 方法的返回值中
+        :param dict kwargs: (可选) 连接时传递给 requests 库的额外参数（详见 requests 库中的 request）
         """
         url = f"{self.jxglUrl}{Route.TeachingArrangement.personal_courses_table}"
-        resp = self.session.post(url, data={"Sel_XNXQ": termId, "px": 0, "rad": "on"})
+        resp = self.session.post(url, data={"Sel_XNXQ": termId, "px": 0, "rad": "on"}, **kwargs)
         if ("您正查看的此页已过期" in resp.text):
             raise self.LoginExpired
         return self.parseCourses(resp.text)
@@ -270,13 +278,14 @@ class Jxgl():
         listing = BeautifulSoup(htmlText, "lxml").select("table > tbody > tr")
         return [Jxgl._makeCourse(i) for i in listing]
 
-    def getExams(self, termId: int) -> List[Exam]:
+    def getExams(self, termId: int, kwargs: dict = {}) -> List[Exam]:
         """获取指定学期的考试安排
 
         :param int termId: 学期编号，包含在 getExamsTerms 方法的返回值中
+        :param dict kwargs: (可选) 连接时传递给 requests 库的额外参数（详见 requests 库中的 request）
         """
         url = f"{self.jxglUrl}{Route.TeachingArrangement.personal_exams_table}"
-        resp = self.session.post(url, data={"sel_xnxq": termId})
+        resp = self.session.post(url, data={"sel_xnxq": termId}, **kwargs)
         if ("您正查看的此页已过期" in resp.text):
             raise self.LoginExpired
         return self.parseExams(resp.text)
@@ -287,12 +296,14 @@ class Jxgl():
         listing = BeautifulSoup(htmlText, "lxml").select("table[ID=ID_Table] > tr")
         return [Jxgl._makeExam(i) for i in listing]
 
-    def isLogined(self) -> bool:
+    def isLogined(self, kwargs: dict = {}) -> bool:
         """判断是否处于登陆状态
+
+        :param dict kwargs: (可选) 连接时传递给 requests 库的额外参数（详见 requests 库中的 request）
 
         处于登陆状态则返回 True，否则返回 False
         """
-        return self.session.get(f"{self.jxglUrl}{Route.logintest}", allow_redirects=False).status_code == 200
+        return self.session.get(f"{self.jxglUrl}{Route.logintest}", allow_redirects=False, **kwargs).status_code == 200
 
     @staticmethod
     def _makeExam(tr: BeautifulSoup) -> Exam:
