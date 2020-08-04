@@ -174,7 +174,6 @@ class Jxgl():
         pattern = re.compile(r"(?<=document.cookie=')DSafeId=([A-Z0-9]+);(?=';)")
         if pattern.search(resp.text):
             first_cookie = re.search(pattern, resp.text)[1]
-            assert isinstance(first_cookie, re.Match)
             self.session.cookies.set("DSafeId", first_cookie)
             time.sleep(0.680)
             resp = self.session.get(url)
