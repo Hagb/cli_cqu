@@ -103,4 +103,6 @@ CLI CQU 提供了命令行界面。
         - `cli_cqu.exception.signal` 充当信号作用的异常
     - `cli_cqu.util`
         - `cli_cqu.util.calendar` 将考试安排或课程表解析成 Calendar 对象
+        - `cli_cqu,util.datetime` 将教务管理系统的节次格式解析成 datetime
+        - `cli_cqu.util.parse` 其他解析相关的杂项
     - `cli_cqu.model` 数据模型
