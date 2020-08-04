@@ -3,13 +3,26 @@ import uuid
 from datetime import datetime, date
 from typing import List, Union
 import re
-from icalendar import Calendar, Event
+from icalendar import Calendar, Event, vDDDTypes
+from icalendar.cal import Component
 from copy import deepcopy
 from ..data.schedule import New2020Schedule, Schedule
 from ..model import Course, ExperimentCourse, Exam
 from ..util.datetime import course_materialize_calendar, exam_materialize_calendar, VTIMEZONE
 
 __all__ = ("exams_make_ical", "courses_make_ical")
+
+
+def add_datetime(component: Component, name: str, time: datetime):
+    """一个跳过带时区的时间中 VALUE 属性的 workaround
+
+    某些日历软件无法正常解析同时带 TZID 和 VALUE 属性的时间。
+    详见 https://github.com/collective/icalendar/issues/75 。
+    """
+    vdatetime: vDDDTypes = vDDDTypes(time)
+    if 'VALUE' in vdatetime.params and 'TZID' in vdatetime.params:
+        vdatetime.params.pop('VALUE')
+    component.add(name, vdatetime)
 
 
 def exams_make_ical(exams: List[Exam]) -> Calendar:
@@ -36,8 +49,8 @@ def exam_build_event(exam: Exam) -> Event:
     )
 
     dt_start, dt_end = exam_materialize_calendar(exam.time)
-    proto.add("dtstart", dt_start)
-    proto.add("dtend", dt_end)
+    add_datetime(proto, "dtstart", dt_start)
+    add_datetime(proto, "dtend", dt_end)
 
     # RFC 5545 要求 VEVENT 必须存在 dtstamp 与 uid 属性
     proto.add('dtstamp', datetime.utcnow())
@@ -89,8 +102,8 @@ def course_build_event(course: Union[Course, ExperimentCourse], start: date, sch
         first_lesson = course_materialize_calendar(t_week, t_lesson, start, schedule)
         dt_start, dt_end = first_lesson
 
-        ev.add("dtstart", dt_start)
-        ev.add("dtend", dt_end)
+        add_datetime(proto, "dtstart", dt_start)
+        add_datetime(proto, "dtend", dt_end)
 
         # 解析周规则
         if "-" in week:

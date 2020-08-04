@@ -143,8 +143,6 @@ class Jxgl():
 
     创建后不会自动登陆，需要使用 login 方法来登陆
     """
-
-
     class NoUserError(ValueError):
         "使用了不存在的用户名的登陆错误时抛出的异常"
         pass
