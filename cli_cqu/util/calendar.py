@@ -7,7 +7,7 @@ from icalendar import Calendar, Event
 from copy import deepcopy
 from ..data.schedule import New2020Schedule, Schedule
 from ..model import Course, ExperimentCourse, Exam
-from ..util.datetime import course_materialize_calendar, exam_materialize_calendar
+from ..util.datetime import course_materialize_calendar, exam_materialize_calendar, VTIMEZONE
 
 __all__ = ("exams_make_ical", "courses_make_ical")
 
@@ -20,6 +20,7 @@ def exams_make_ical(exams: List[Exam]) -> Calendar:
     cal = Calendar()
     cal.add("prodid", "-//Zombie110year//CLI CQU//")
     cal.add("version", "2.0")
+    cal.add_component(VTIMEZONE)
     for exam in exams:
         cal.add_component(exam_build_event(exam))
     return cal
@@ -61,6 +62,7 @@ def courses_make_ical(
     cal = Calendar()
     cal.add("prodid", "-//Zombie110year//CLI CQU//")
     cal.add("version", "2.0")
+    cal.add_component(VTIMEZONE)
     for course in courses:
         for ev in course_build_event(course, start, schedule):
             cal.add_component(ev)
