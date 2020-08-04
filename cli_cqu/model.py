@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-__all__ = ("Course", "ExperimentCourse")
+__all__ = ("Course", "ExperimentCourse", "Exam")
 
 
 class Course(BaseModel):
