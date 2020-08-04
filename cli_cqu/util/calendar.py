@@ -102,8 +102,8 @@ def course_build_event(course: Union[Course, ExperimentCourse], start: date, sch
         first_lesson = course_materialize_calendar(t_week, t_lesson, start, schedule)
         dt_start, dt_end = first_lesson
 
-        add_datetime(proto, "dtstart", dt_start)
-        add_datetime(proto, "dtend", dt_end)
+        add_datetime(ev, "dtstart", dt_start)
+        add_datetime(ev, "dtend", dt_end)
 
         # 解析周规则
         if "-" in week:
