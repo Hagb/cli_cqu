@@ -7,7 +7,7 @@ from ..data.schedule import Schedule, New2020Schedule
 from icalendar import Timezone
 import re
 
-__all__ = ("exam_materialize_calendar", "course_materialize_calendar")
+__all__ = ("exam_materialize_calendar", "course_materialize_calendar", "VTIMEZONE", "TIMEZONE")
 
 # 14节 表示全天
 FULL_DAY = 14
@@ -25,7 +25,9 @@ DTSTART:19700101T000000
 END:STANDARD
 END:VTIMEZONE"""
 )
+"""默认时区（Asia/Shanghai）的 iCalendar VTIMEZONE"""
 TIMEZONE: timezone = VTIMEZONE.to_tz()
+"""由 VTIMEZONE 生成的 datetime.timezone 对象，Asia/Shanghai"""
 
 p_day_lesson: re.Pattern = re.compile(r"^(?P<day>[一二三四五六日])\[(?P<lesson>[\d\-]+)节\]$")
 re_exam: re.Pattern = re.compile(r'^(\d{4}-\d{2}-\d{2})\(\d+周 星期[一二三四五六日]\)(\d{2}:\d{2})-(\d{2}:\d{2})$')
