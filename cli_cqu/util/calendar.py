@@ -9,6 +9,7 @@ from copy import deepcopy
 from ..data.schedule import New2020Schedule, Schedule
 from ..model import Course, ExperimentCourse, Exam
 from ..util.datetime import course_materialize_calendar, exam_materialize_calendar, VTIMEZONE
+from .parse import parseCourseIdentifier
 
 __all__ = ("exams_make_ical", "courses_make_ical", "exam_to_event", "course_to_event")
 
@@ -28,11 +29,12 @@ def add_datetime(component: Component, name: str, time: datetime):
 def exam_to_event(exam: Exam) -> Event:
     "exams_make_ical 函数 exam2event 参数的默认函数"
     proto = Event()
-    proto.add("summary", f"{exam.identifier}-考试")
+    cid, cname = parseCourseIdentifier(exam.identifier)
+    proto.add("summary", f"考试：{cname}")
     proto.add("location", f"{exam.location}-座位号{exam.seat_no}")
     proto.add(
-        "description", f"考试\n学分：{exam.score}" + (f"\n类别：{exam.classifier}" if exam.classifier else '') +
-        (f"\n考核方式：{exam.exam_type}" if exam.exam_type else '')
+        "description", f"考试：\n学分：{exam.score}；\n课程编号：{cid}" + (f"；\n类别：{exam.classifier}" if exam.classifier else '') +
+        (f"；\n考核方式：{exam.exam_type}" if exam.exam_type else '')
     )
     return proto
 
@@ -71,12 +73,13 @@ def exam_build_event(exam: Exam, exam2event: Callable[[Exam], Event]) -> Event:
 def course_to_event(course: Union[Course, ExperimentCourse]) -> Event:
     "courses_make_ical 函数 course2event 参数的默认函数"
     proto = Event()
-    proto.add("summary", course.identifier)
+    cid, cname = parseCourseIdentifier(course.identifier)
+    proto.add("summary", cname)
     proto.add("location", course.location)
     if isinstance(course, Course):
-        proto.add("description", f"教师：{course.teacher}")
+        proto.add("description", f"教师：{course.teacher}；\n课程编号：{cid}；\n学分：{course.score}")
     elif isinstance(course, ExperimentCourse):
-        proto.add("description", f"教师：{course.teacher}；值班教师：{course.hosting_teacher}；\n项目：{course.project_name}")
+        proto.add("description", f"教师：{course.teacher}；\n值班教师：{course.hosting_teacher}；\n课程编号：{cid}；\n项目：{course.project_name}")
     else:
         raise TypeError(f"{course} 需要是 Course 或 ExperimentCourse，但却是 {type(course)}")
     return proto
