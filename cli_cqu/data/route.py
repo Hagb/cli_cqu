@@ -155,6 +155,7 @@ class Jxgl():
         "登陆 cookies 过期或尚未登陆时抛出的异常"
         pass
 
+
     jxglUrl: str
     username: str
     password: str
@@ -203,7 +204,7 @@ class Jxgl():
         }
         page_text = self.session.post(url, data=login_form, **kwargs).content.decode(encoding='GBK')
         if "正在加载权限数据..." in page_text:
-            return
+            return True
         if "账号或密码不正确！请重新输入。" in page_text:
             raise self.LoginIncorrectError
         if "该账号尚未分配角色!" in page_text:
