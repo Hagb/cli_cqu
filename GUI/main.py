@@ -35,6 +35,10 @@ class logInDialog:
             QMessageBox.critical(self.loginui, "错误", "无该用户！")
         except Jxgl.LoginIncorrectError:
             QMessageBox.critical(self.loginui, "错误", "学号或密码错误!")
+        else:
+            print(jwcConnection.login())
+            if jwcConnection.login() is True:
+                QMessageBox.about(self.loginui, "", "登陆成功")
 
     def handleReset(self):
         self.loginui.stuNum.setText("")
