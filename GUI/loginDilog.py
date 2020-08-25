@@ -13,17 +13,20 @@ from GUI.cli.data import schedule
 from GUI.cli.data.route import Jxgl
 from GUI.cli.util.calendar import courses_make_ical
 
+qfile_logIn = QFile("ui/loginDialog.ui")
+qfile_logIn.open(QFile.ReadOnly)
+qfile_logIn.close()
 
-class logInDialog:
+
+
+class logInDialog(QDialog):
 
     def __init__(self, parent=None):
-        super(logInDialog, self).__init__(parent)
-        # 加载窗体控件UI文件
-        qfile_logIn = QFile("ui/loginDialog.ui")
-        qfile_logIn.open(QFile.ReadOnly)
-        qfile_logIn.close()
         # load window widgets
         self.loginui = QUiLoader().load(qfile_logIn)
+        super(logInDialog, self).__init__(parent)
+        # 加载窗体控件UI文件
+
         self.loginui.logInButton.clicked.connect(self.handleLogin)
         self.loginui.resetButton.clicked.connect(self.handleReset)
 
