@@ -155,6 +155,10 @@ class Jxgl():
         "登陆 cookies 过期或尚未登陆时抛出的异常"
         pass
 
+    class UnregisteredError(Exception):
+        "学生未注册（开学期间可能出现已在辅导员处注册但依然出现此错误的情况）时抛出抛出的异常"
+        pass
+
 
     jxglUrl: str
     username: str
@@ -166,7 +170,8 @@ class Jxgl():
 
         :param dict kwargs: (可选) 连接时传递给 requests 库的额外参数（详见 requests 库中的 request）
 
-        帐号或密码错误则抛出异常 NoUserError 或 LoginIncorrectError
+        帐号或密码错误则抛出异常 NoUserError 或 LoginIncorrectError；
+        学生未注册（开学期间可能出现已在辅导员处注册但依然出现此错误的情况）则抛出 UnregisteredError
         """
         # 初始化 Cookie
         url = f"{self.jxglUrl}/home.aspx"
@@ -209,6 +214,8 @@ class Jxgl():
             raise self.LoginIncorrectError
         if "该账号尚未分配角色!" in page_text:
             raise self.NoUserError
+        if "alert('您尚未报到注册成功，请到学院咨询并办理相关手续！" in page_text:
+            raise self.UnregisteredError
         else:
             raise ValueError("意料之外的登陆返回页面")
 
